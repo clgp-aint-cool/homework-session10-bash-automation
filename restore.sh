@@ -29,6 +29,7 @@ trap 'rm -rf "$RESTORE_DIR"' EXIT
 if [[ "$DEST" == *:* ]]; then
     REMOTE_HOST="${DEST%%:*}"
     REMOTE_PATH="${DEST#*:}"
+    # shellcheck disable=SC2029
     LATEST_NAME="$(ssh "$REMOTE_HOST" "cd '${REMOTE_PATH}' && ls -t backup-*.tar.gz 2>/dev/null | head -n1")"
 
     if [[ -z "$LATEST_NAME" ]]; then
@@ -39,7 +40,7 @@ if [[ "$DEST" == *:* ]]; then
     rsync -az "${DEST}/${LATEST_NAME}" "${RESTORE_DIR}/"
     ARCHIVE_PATH="${RESTORE_DIR}/${LATEST_NAME}"
 else
-    LATEST_NAME="$(cd "$DEST" && ls -t backup-*.tar.gz 2>/dev/null | head -n1)"
+    LATEST_NAME="$(cd "$DEST" && find . -maxdepth 1 -name 'backup-*.tar.gz' -printf '%T@ %f\n' | sort -rn | head -n1 | cut -d' ' -f2-)"
 
     if [[ -z "$LATEST_NAME" ]]; then
         echo "ERROR: no archives found at ${DEST}" >&2

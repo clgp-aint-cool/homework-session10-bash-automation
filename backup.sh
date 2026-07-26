@@ -28,16 +28,37 @@ ARCHIVE_NAME="backup-${HOSTNAME_FQDN}-${TIMESTAMP}.tar.gz"
 
 TMP_DIR="$(mktemp -d)"
 STATUS=0
+ERROR_ALREADY_REPORTED=0
 
+
+
+on_error() {
+    local lineno="$1"
+    local failed_command="$2"
+    local exit_code=$?
+
+    ERROR_ALREADY_REPORTED=1
+
+    {
+        echo "Host: ${HOSTNAME_FQDN}"
+        echo "Timestamp: $(date -Iseconds)"
+        echo "Script: $0"
+        echo "Line: ${lineno}"
+        echo "Command: ${failed_command}"
+        echo "Exit code: ${exit_code}"
+    } | mail -s "SCRIPT ERROR: ${HOSTNAME_FQDN} - $0 failed at line ${lineno}" "$ALERT_TO" || true
+}
+trap 'on_error "$LINENO" "$BASH_COMMAND"' ERR
 # ---------------------------------------------------------------------------
 # cleanup(): always removes the temp dir; on non-zero exit, emails failure.
 # Registered with `trap ... EXIT` so it fires on any exit path, including
 # `set -e` aborting the script early.
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2317
 cleanup() {
     STATUS=$?
 
-    if (( STATUS != 0 )); then
+    if (( STATUS != 0 ))&& (( ERROR_ALREADY_REPORTED != 1 )); then
         {
             echo "Host: ${HOSTNAME_FQDN}"
             echo "Timestamp: $(date -Iseconds)"
@@ -96,7 +117,9 @@ ARCHIVE_SIZE="$(du -h "$ARCHIVE_PATH" | cut -f1)"
 #      - remote host:          user@host:/path/to/dir
 # ---------------------------------------------------------------------------
 if [[ "$DEST" == *:* ]]; then
+    # shellcheck disable=SC2029
     REMOTE_HOST="${DEST%%:*}"
+    # shellcheck disable=SC2029
     REMOTE_PATH="${DEST#*:}"
     rsync -az "$ARCHIVE_PATH" "$DEST/"
 else
@@ -108,6 +131,7 @@ fi
 # 4. Rotate: delete archives older than RETAIN_DAYS at the destination
 # ---------------------------------------------------------------------------
 if [[ "$DEST" == *:* ]]; then
+    # shellcheck disable=SC2029	
     ssh "$REMOTE_HOST" "find '${REMOTE_PATH}' -maxdepth 1 -name 'backup-*.tar.gz' -mtime +${RETAIN_DAYS} -delete"
 else
     find "$DEST" -maxdepth 1 -name 'backup-*.tar.gz' -mtime "+${RETAIN_DAYS}" -delete

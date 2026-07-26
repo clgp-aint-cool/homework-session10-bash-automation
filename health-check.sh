@@ -13,7 +13,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "ERROR: config file not found: $CONFIG_FILE" >&2
     exit 1
 fi
-
+# shellcheck disable=SC1090
 source "$CONFIG_FILE"
 
 #   ALERT_TO, DISK_THRESHOLD, RAM_MIN_FREE, SERVICES, HEALTH_URL
